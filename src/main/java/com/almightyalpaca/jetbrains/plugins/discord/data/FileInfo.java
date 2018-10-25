@@ -18,8 +18,8 @@ package com.almightyalpaca.jetbrains.plugins.discord.data;
 import com.almightyalpaca.jetbrains.plugins.discord.utils.FileType;
 import com.almightyalpaca.jetbrains.plugins.discord.utils.FileUtil;
 import com.almightyalpaca.jetbrains.plugins.discord.utils.FilenameUtils;
+import com.almightyalpaca.jetbrains.plugins.discord.utils.SerializablePair;
 import com.google.gson.Gson;
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +37,7 @@ public class FileInfo implements Serializable, Comparable<FileInfo>
     @NotNull
     private final String name;
     @NotNull
-    private Pair<FileType, String> content;
+    private SerializablePair<FileType, String> content;
     private boolean readOnly;
     private long timeAccessed;
     private long timeOpened;
@@ -47,12 +47,12 @@ public class FileInfo implements Serializable, Comparable<FileInfo>
         this(file.getPath(), file.getName(), FileUtil.readFile(file), !file.isWritable(), System.currentTimeMillis());
     }
 
-    public FileInfo(@NotNull String id, @NotNull String name, @NotNull Pair<FileType, String> content, boolean readOnly, long timeOpened)
+    public FileInfo(@NotNull String id, @NotNull String name, @NotNull SerializablePair<FileType, String> content, boolean readOnly, long timeOpened)
     {
         this(id, name, content, readOnly, timeOpened, timeOpened);
     }
 
-    public FileInfo(@NotNull String id, @NotNull String name, @NotNull Pair<FileType, String> content, boolean readOnly, long timeOpened, long timeAccessed)
+    public FileInfo(@NotNull String id, @NotNull String name, @NotNull SerializablePair<FileType, String> content, boolean readOnly, long timeOpened, long timeAccessed)
     {
         this.id = id;
         this.name = name;
@@ -98,12 +98,12 @@ public class FileInfo implements Serializable, Comparable<FileInfo>
     }
 
     @NotNull
-    public Pair<FileType, String> getContent()
+    public SerializablePair<FileType, String> getContent()
     {
         return content;
     }
 
-    void setContent(@NotNull Pair<FileType, String> content)
+    void setContent(@NotNull SerializablePair<FileType, String> content)
     {
         this.content = content;
     }

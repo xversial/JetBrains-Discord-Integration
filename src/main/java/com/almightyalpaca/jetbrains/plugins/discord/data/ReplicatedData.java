@@ -20,8 +20,8 @@ import com.almightyalpaca.jetbrains.plugins.discord.debug.LoggerFactory;
 import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings;
 import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings;
 import com.almightyalpaca.jetbrains.plugins.discord.utils.FileType;
+import com.almightyalpaca.jetbrains.plugins.discord.utils.SerializablePair;
 import com.google.gson.Gson;
-import com.intellij.openapi.util.Pair;
 import gnu.trove.TIntObjectHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -452,7 +452,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         }
     }
 
-    public void fileSetFirstLine(long timestamp, @Nullable InstanceInfo instance, @Nullable ProjectInfo project, @Nullable FileInfo file, @Nullable Pair<FileType, String> content)
+    public void fileSetFirstLine(long timestamp, @Nullable InstanceInfo instance, @Nullable ProjectInfo project, @Nullable FileInfo file, @Nullable SerializablePair<FileType, String> content)
     {
         LOG.trace("ReplicatedData#fileSetFirstLine({}, {}, {}, {}, {})", timestamp, instance, project, file, content);
 
@@ -515,7 +515,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         return null;
     }
 
-    private Pair<InstanceInfo, ProjectInfo> updateProject(@NotNull String instanceId, @NotNull String projectId, long timeAccessed)
+    private SerializablePair<InstanceInfo, ProjectInfo> updateProject(@NotNull String instanceId, @NotNull String projectId, long timeAccessed)
     {
         InstanceInfo instance = updateInstance(instanceId, timeAccessed);
 
@@ -534,7 +534,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
 
                 project.setTimeAccessed(timeAccessed);
 
-                return Pair.create(instance, project);
+                return new SerializablePair<>(instance, project);
             }
         }
 
@@ -543,7 +543,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
 
     private void updateFile(@NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, long timeAccessed)
     {
-        Pair<InstanceInfo, ProjectInfo> pair = updateProject(instanceId, projectId, timeAccessed);
+        SerializablePair<InstanceInfo, ProjectInfo> pair = updateProject(instanceId, projectId, timeAccessed);
 
         if (pair != null)
         {
@@ -724,7 +724,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         notifyListeners(Notifier.Type.FILE_UPDATE);
     }
 
-    protected void _fileSetContent(long timestamp, @NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, @NotNull Pair<FileType, String> content)
+    protected void _fileSetContent(long timestamp, @NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, @NotNull SerializablePair<FileType, String> content)
     {
         LOG.trace("ReplicatedData#_fileSetContent({}, {}, {}, {}, {})", timestamp, instanceId, projectId, fileId, content);
 

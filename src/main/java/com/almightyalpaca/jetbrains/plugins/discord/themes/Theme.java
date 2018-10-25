@@ -1,10 +1,10 @@
 package com.almightyalpaca.jetbrains.plugins.discord.themes;
 
 import com.almightyalpaca.jetbrains.plugins.discord.utils.FileType;
+import com.almightyalpaca.jetbrains.plugins.discord.utils.SerializablePair;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.intellij.openapi.util.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -83,29 +83,29 @@ public class Theme implements Comparable<Theme>
     @Nullable
     public Icon matchApplication(@NotNull String code)
     {
-        List<Pair<String, String>> values = Collections.singletonList(
-                new Pair<>("code", code));
+        List<SerializablePair<String, String>> values = Collections.singletonList(
+                new SerializablePair<>("code", code));
 
         return findMatch(this.getIcons(), values);
     }
 
     @Nullable
-    public Icon matchLanguage(@NotNull String filename, @NotNull Pair<FileType, String> content)
+    public Icon matchLanguage(@NotNull String filename, @NotNull SerializablePair<FileType, String> content)
     {
-        List<Pair<String, String>> values = new ArrayList<>();
+        List<SerializablePair<String, String>> values = new ArrayList<>();
 
-        values.add(new Pair<>("filename", filename));
+        values.add(new SerializablePair<>("filename", filename));
 
         if (content.getFirst() == FileType.TEXT)
-            new Pair<>("firstLine", content);
+            new SerializablePair<>("firstLine", content);
         else
-            new Pair<>("magicNumber", content);
+            new SerializablePair<>("magicNumber", content);
 
         return findMatch(this.getIcons(), values);
     }
 
     @Nullable
-    private Icon findMatch(@NotNull Collection<Icon> entities, @NotNull List<Pair<String, String>> values)
+    private Icon findMatch(@NotNull Collection<Icon> entities, @NotNull List<SerializablePair<String, String>> values)
     {
         return values.stream()
                 .map(p -> entities.stream()

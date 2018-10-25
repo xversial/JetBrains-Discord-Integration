@@ -1,7 +1,7 @@
 package com.almightyalpaca.jetbrains.plugins.discord.themes;
 
+import com.almightyalpaca.jetbrains.plugins.discord.utils.SerializablePair;
 import com.google.gson.JsonObject;
-import com.intellij.openapi.util.Pair;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
@@ -44,7 +44,7 @@ public class Icon
         Map<String, Set<Matcher>> matchers = matcherObject.entrySet().stream()
                 .flatMap(entry -> StreamSupport
                         .stream(entry.getValue().getAsJsonArray().spliterator(), false)
-                        .map(jsonElement -> new Pair<>(entry.getKey().toLowerCase(), Matcher.fromJson(jsonElement.getAsJsonObject()))))
+                        .map(jsonElement -> new SerializablePair<>(entry.getKey().toLowerCase(), Matcher.fromJson(jsonElement.getAsJsonObject()))))
                 .collect(Collectors.groupingBy(
                         p -> p.getFirst(),
                         Collectors.mapping(

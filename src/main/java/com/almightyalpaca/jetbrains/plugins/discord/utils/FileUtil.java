@@ -1,13 +1,12 @@
 package com.almightyalpaca.jetbrains.plugins.discord.utils;
 
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 
 public class FileUtil
 {
     @NotNull
-    public static Pair<FileType, String> readFile(@NotNull VirtualFile file) // TODO: fix reading files
+    public static SerializablePair<FileType, String> readFile(@NotNull VirtualFile file) // TODO: fix reading files
     {
 //        Document document = FileDocumentManager.getInstance().getDocument(file);
 //
@@ -46,6 +45,6 @@ public class FileUtil
 //
 //        return "";
 
-        return new Pair<>(FileType.TEXT, "");
+        return new SerializablePair<>(FileType.TEXT, "");
     }
 }
