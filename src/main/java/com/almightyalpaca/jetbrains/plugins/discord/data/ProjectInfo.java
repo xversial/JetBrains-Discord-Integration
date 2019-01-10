@@ -15,9 +15,7 @@
  */
 package com.almightyalpaca.jetbrains.plugins.discord.data;
 
-import com.almightyalpaca.jetbrains.plugins.discord.JetBrainsDiscordIntegration;
-import com.almightyalpaca.jetbrains.plugins.discord.settings.DiscordIntegrationProjectSettings;
-import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings;
+import com.almightyalpaca.jetbrains.plugins.discord.settings.ProjectSettings;
 import com.google.gson.Gson;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
@@ -31,8 +29,6 @@ import java.util.Objects;
 
 public class ProjectInfo implements Serializable, Comparable<ProjectInfo>
 {
-    private static final long serialVersionUID = JetBrainsDiscordIntegration.PROTOCOL_VERSION;
-
     @NotNull
     private static final Gson GSON = new Gson();
 
@@ -43,21 +39,21 @@ public class ProjectInfo implements Serializable, Comparable<ProjectInfo>
     @NotNull
     private final Map<String, FileInfo> files;
     @NotNull
-    private ProjectSettings settings;
+    private com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings settings;
     private long timeAccessed;
     private long timeOpened;
 
-    public ProjectInfo(@NotNull String id, @NotNull ProjectSettings settings, @NotNull String name, long timeOpened)
+    public ProjectInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings settings, @NotNull String name, long timeOpened)
     {
         this(id, settings, name, timeOpened, timeOpened);
     }
 
-    public ProjectInfo(@NotNull String id, @NotNull ProjectSettings settings, @NotNull String name, long timeOpened, long timeAccessed)
+    public ProjectInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings settings, @NotNull String name, long timeOpened, long timeAccessed)
     {
         this(id, settings, name, timeOpened, timeAccessed, new HashMap<>());
     }
 
-    public ProjectInfo(@NotNull String id, @NotNull ProjectSettings settings, @NotNull String name, long timeOpened, long timeAccessed, @NotNull Map<String, FileInfo> files)
+    public ProjectInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings settings, @NotNull String name, long timeOpened, long timeAccessed, @NotNull Map<String, FileInfo> files)
     {
         this.settings = settings;
         this.timeOpened = timeOpened;
@@ -69,7 +65,7 @@ public class ProjectInfo implements Serializable, Comparable<ProjectInfo>
 
     public ProjectInfo(@NotNull Project project)
     {
-        this(project.getLocationHash(), DiscordIntegrationProjectSettings.getInstance(project).getSettings(), project.getName(), System.currentTimeMillis());
+        this(project.getLocationHash(), ProjectSettings.getInstance(project).getSettings(), project.getName(), System.currentTimeMillis());
     }
 
     public long getTimeOpened()
@@ -110,12 +106,12 @@ public class ProjectInfo implements Serializable, Comparable<ProjectInfo>
     }
 
     @NotNull
-    public ProjectSettings getSettings()
+    public com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings getSettings()
     {
         return this.settings;
     }
 
-    void setSettings(@NotNull ProjectSettings settings)
+    void setSettings(@NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings settings)
     {
         this.settings = settings;
     }

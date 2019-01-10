@@ -23,17 +23,17 @@ import com.almightyalpaca.jetbrains.plugins.discord.data.ReplicatedData;
 import com.almightyalpaca.jetbrains.plugins.discord.debug.Logger;
 import com.almightyalpaca.jetbrains.plugins.discord.debug.LoggerFactory;
 import com.almightyalpaca.jetbrains.plugins.discord.listeners.*;
-import com.almightyalpaca.jetbrains.plugins.discord.notifications.DiscordIntegrationErrorNotification;
+import com.almightyalpaca.jetbrains.plugins.discord.notifications.ErrorNotification;
 import com.almightyalpaca.jetbrains.plugins.discord.presence.PresenceRenderContext;
 import com.almightyalpaca.jetbrains.plugins.discord.presence.PresenceRenderer;
 import com.almightyalpaca.jetbrains.plugins.discord.rpc.RPC;
-import com.almightyalpaca.jetbrains.plugins.discord.settings.DiscordIntegrationApplicationSettings;
+import com.almightyalpaca.jetbrains.plugins.discord.settings.ApplicationSettings;
+import com.almightyalpaca.jetbrains.plugins.discord.themes.ThemeLoader;
 import com.intellij.AppTopics;
 import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.components.ApplicationComponent;
 import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.event.EditorEventMulticaster;
 import com.intellij.openapi.vfs.VirtualFileManager;
@@ -52,12 +52,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class DiscordIntegrationApplicationComponent implements ApplicationComponent, Receiver, ReplicatedData.Notifier
+public class ApplicationComponent implements com.intellij.openapi.components.ApplicationComponent, Receiver, ReplicatedData.Notifier
 {
     @NotNull
-    public static final String CLIENT_ID = "382629176030658561";
-    @NotNull
-    private static final Logger LOG = LoggerFactory.getLogger(DiscordIntegrationApplicationComponent.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ApplicationComponent.class);
 
     @NotNull
     private final Application application;
@@ -80,15 +78,15 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
     @Nullable
     private VirtualFileListener virtualFileListener;
 
-    public DiscordIntegrationApplicationComponent(@NotNull Application application)
+    public ApplicationComponent(@NotNull Application application)
     {
         this.application = application;
     }
 
     @NotNull
-    public static DiscordIntegrationApplicationComponent getInstance()
+    public static ApplicationComponent getInstance()
     {
-        return ApplicationManager.getApplication().getComponent(DiscordIntegrationApplicationComponent.class);
+        return ApplicationManager.getApplication().getComponent(ApplicationComponent.class);
     }
 
     @NotNull
@@ -115,9 +113,12 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
 
         try
         {
+            //noinspection ResultOfMethodCallIgnored
+            ThemeLoader.getInstance();
+
             String props = "fast.xml";
 
-            LOG.trace("DiscordIntegrationApplicationComponent#initComponent()#props = {}", props);
+            LOG.trace("ApplicationComponent#initComponent()#props = {}", props);
 
             JChannel channel = new JChannel(props);
             channel.setReceiver(this);
@@ -131,7 +132,7 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
 
             this.instanceInfo = new InstanceInfo(channel.getAddressAsString(), ApplicationInfo.getInstance());
 
-            LOG.trace("DiscordIntegrationApplicationComponent#initComponent()#this.instanceInfo = {}", this.instanceInfo);
+            LOG.trace("ApplicationComponent#initComponent()#this.instanceInfo = {}", this.instanceInfo);
 
             data.instanceAdd(System.currentTimeMillis(), this.instanceInfo);
 
@@ -173,11 +174,14 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
     public synchronized void checkExperiementalWindowListener()
     {
 
-        if (DiscordIntegrationApplicationSettings.getInstance().getSettings().isExperimentalWindowListenerEnabled())
+        if (ApplicationSettings.getInstance().getSettings().isExperimentalWindowListenerEnabled())
         {
             if (this.visibleAreaListener == null)
             {
-                EditorFactory.getInstance().getEventMulticaster().addVisibleAreaListener(this.visibleAreaListener = new VisibleAreaListener());
+                EditorFactory
+                        .getInstance()
+                        .getEventMulticaster()
+                        .addVisibleAreaListener(this.visibleAreaListener = new VisibleAreaListener());
             }
         }
         else
@@ -246,61 +250,67 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
     @Override
     public void viewAccepted(@NotNull View view)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#viewAccepted({})", view);
+        LOG.trace("ApplicationComponent#viewAccepted({})", view);
     }
 
     private void rpcError(int code, @Nullable String text)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#rpcError({}, {})", code, text);
+        LOG.trace("ApplicationComponent#rpcError({}, {})", code, text);
 
-        Notifications.Bus.notify(new DiscordIntegrationErrorNotification("The plugin has received an unexpected RPC error.\nCode: " + code + " / " + text));
+        Notifications.Bus.notify(new ErrorNotification("Unexpected RPC error", code + " / " + text));
     }
 
     private void rpcDisconnected(int code, @Nullable String text)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#rpcDisconnected({}, {})", code, text);
+        LOG.trace("ApplicationComponent#rpcDisconnected({}, {})", code, text);
 
-        Notifications.Bus.notify(new DiscordIntegrationErrorNotification("The plugin has received an unexpected RPC error.\nCode: " + code + " / " + text));
+        Notifications.Bus.notify(new ErrorNotification("Unexpected RPC disconnect", code + " / " + text));
     }
 
     private void rpcReady(DiscordUser user)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#rpcReady(" + user.username + "#" + user.discriminator + ")");
+        LOG.trace("ApplicationComponent#rpcReady(" + user.username + "#" + user.discriminator + ")");
     }
 
     @Override
     public void dataUpdated(@NotNull Type type)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#dataUpdated({})", type);
-        LOG.trace("DiscordIntegrationApplicationComponent#dataUpdated()#this.instanceInfo = {}", this.instanceInfo);
-        LOG.trace("DiscordIntegrationApplicationComponent#dataUpdated()#this.instanceInfo.isHasRpcConnection() = {}", this.instanceInfo != null && this.instanceInfo.isHasRpcConnection());
+        LOG.trace("ApplicationComponent#dataUpdated({})", type);
+        LOG.trace("ApplicationComponent#dataUpdated()#this.instanceInfo = {}", this.instanceInfo);
+        LOG.trace("ApplicationComponent#dataUpdated()#this.instanceInfo.isHasRpcConnection() = {}",
+                this.instanceInfo != null ? this.instanceInfo.getConnectedApplication() : null);
 
-        if (!instanceInfo.isHasRpcConnection())
+        if (this.instanceInfo != null && this.instanceInfo.getConnectedApplication() == null)
             checkRpcConnection(null);
 
-        if (this.instanceInfo != null && this.instanceInfo.isHasRpcConnection())
+        if (this.instanceInfo != null && this.instanceInfo.getConnectedApplication() != null)
             RPC.updatePresence(type.getDelay(), TimeUnit.SECONDS);
     }
 
     protected long presenceUpdated(@NotNull PresenceRenderContext renderContext)
     {
-        LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated({})", renderContext);
+        LOG.trace("ApplicationComponent#presenceUpdated({})", renderContext);
 
         InstanceInfo instance = renderContext.getInstance();
 
         checkRpcConnection(renderContext);
 
-        LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#instance = {}", instance);
-        LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#instance.getSettings().isHideAfterPeriodOfInactivity() = {}", instance != null && instance.getSettings().isHideAfterPeriodOfInactivity());
+        LOG.trace("ApplicationComponent#presenceUpdated()#instance = {}", instance);
+        LOG.trace("ApplicationComponent#presenceUpdated()#instance.getSettings().isHideAfterPeriodOfInactivity() = {}",
+                instance != null && instance.getSettings().isHideAfterPeriodOfInactivity());
 
         if (instance != null && instance.getSettings().isHideAfterPeriodOfInactivity())
         {
-            long delay = TimeUnit.NANOSECONDS.convert(instance.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            long delay = TimeUnit.NANOSECONDS.convert(
+                    instance.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) -
+                    System.currentTimeMillis(), TimeUnit.MILLISECONDS);
 
-            LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#instance.getTimeAccessed() = {}", instance.getTimeAccessed());
-            LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) = {}", instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS));
-            LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#System.currentTimeMillis() = {}", System.currentTimeMillis());
-            LOG.trace("DiscordIntegrationApplicationComponent#presenceUpdated()#delay = {}", delay);
+            LOG.trace("ApplicationComponent#presenceUpdated()#instance.getTimeAccessed() = {}", instance.getTimeAccessed());
+            LOG.trace("ApplicationComponent#presenceUpdated()#instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) = {}", instance
+                    .getSettings()
+                    .getInactivityTimeout(TimeUnit.MILLISECONDS));
+            LOG.trace("ApplicationComponent#presenceUpdated()#System.currentTimeMillis() = {}", System.currentTimeMillis());
+            LOG.trace("ApplicationComponent#presenceUpdated()#delay = {}", delay);
 
             return delay;
         }
@@ -312,38 +322,54 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
     {
         synchronized (rpcLock)
         {
-            LOG.trace("DiscordIntegrationApplicationComponent#checkRpcConnection()");
+            LOG.trace("ApplicationComponent#checkRpcConnection()");
 
             if (this.data == null || this.instanceInfo == null)
                 return;
 
             Map<String, InstanceInfo> instances = this.data.getInstances();
 
-            boolean rpcConnectionExists;
+            String connectedApplication;
 
             //noinspection SynchronizationOnLocalVariableOrMethodParameter
             synchronized (instances)
             {
-                rpcConnectionExists = instances.values().stream().anyMatch(InstanceInfo::isHasRpcConnection);
+                connectedApplication = instances.values().stream()
+                        .map(InstanceInfo::getConnectedApplication)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null);
             }
 
-            LOG.trace("DiscordIntegrationApplicationComponent#checkRpcConnection()#instanceInfo.isHasRpcConnection() = {}", instanceInfo.isHasRpcConnection());
+            LOG.trace("ApplicationComponent#checkRpcConnection()#this.instanceInfo.getConnectedApplication() = {}", this.instanceInfo
+                    .getConnectedApplication());
 
-            if (instanceInfo.isHasRpcConnection() && (renderContext == null ? renderContext = new PresenceRenderContext(data) : renderContext).isEmpty())
+            if (this.instanceInfo.getConnectedApplication() != null)
             {
-                this.data.instanceSetHasRpcConnection(System.currentTimeMillis(), instanceInfo, false);
+                if (renderContext == null)
+                    renderContext = new PresenceRenderContext(data);
 
-                RPC.dispose();
+                if (renderContext.getInstance() != null && !this.instanceInfo
+                        .getConnectedApplication()
+                        .equals(renderContext.getInstance().getSettings().getTheme().getApplication()))
+                {
+                    this.data.instanceSetConnectedApplication(System.currentTimeMillis(), instanceInfo, null);
+
+                    RPC.dispose();
+                }
             }
             // @formatter:off
-            else if (!rpcConnectionExists
-                    && !instanceInfo.isHasRpcConnection()
+            else if (connectedApplication == null
                     && this.channel != null
-                    && Objects.equals(channel.getView().getCoord(), this.channel.getAddress())
-                    && !(renderContext == null ? new PresenceRenderContext(data) : renderContext).isEmpty())
+                    && Objects.equals(this.channel.getView().getCoord(), this.channel.getAddress())
+                    && (renderContext == null ? renderContext = new PresenceRenderContext(this.data) : renderContext).getInstance() != null)
             // @formatter:on
             {
-                this.data.instanceSetHasRpcConnection(System.currentTimeMillis(), instanceInfo, true);
+                @SuppressWarnings("ConstantConditions")
+                String application = renderContext.getInstance().getSettings().getTheme().getApplication();
+
+                this.data.instanceSetConnectedApplication(System.currentTimeMillis(), this.instanceInfo, application);
+
 
                 new Thread(() -> {
                     DiscordEventHandlers handlers = new DiscordEventHandlers();
@@ -352,7 +378,7 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
                     handlers.errored = this::rpcError;
                     handlers.disconnected = this::rpcDisconnected;
 
-                    RPC.init(handlers, CLIENT_ID, () -> new PresenceRenderContext(this.data), new PresenceRenderer(), this::presenceUpdated);
+                    RPC.init(handlers, application, () -> new PresenceRenderContext(this.data), new PresenceRenderer(), this::presenceUpdated);
                 }, "JetBrainsDiscordIntegration-RPC-Starter").start();
             }
         }
@@ -368,7 +394,7 @@ public class DiscordIntegrationApplicationComponent implements ApplicationCompon
     @Override
     public String getComponentName()
     {
-        return DiscordIntegrationApplicationComponent.class.getSimpleName();
+        return ApplicationComponent.class.getSimpleName();
     }
 
     @Nullable

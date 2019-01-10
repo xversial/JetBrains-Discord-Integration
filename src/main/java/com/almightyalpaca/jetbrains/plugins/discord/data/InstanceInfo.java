@@ -15,15 +15,12 @@
  */
 package com.almightyalpaca.jetbrains.plugins.discord.data;
 
-import com.almightyalpaca.jetbrains.plugins.discord.JetBrainsDiscordIntegration;
-import com.almightyalpaca.jetbrains.plugins.discord.settings.DiscordIntegrationApplicationSettings;
-import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings;
+import com.almightyalpaca.jetbrains.plugins.discord.settings.ApplicationSettings;
 import com.google.gson.Gson;
 import com.intellij.openapi.application.ApplicationInfo;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,8 +29,6 @@ import java.util.Objects;
 
 public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
 {
-    private static final long serialVersionUID = JetBrainsDiscordIntegration.PROTOCOL_VERSION;
-
     @NotNull
     private static final Gson GSON = new Gson();
 
@@ -44,27 +39,28 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
     @NotNull
     private final String id;
     @NotNull
-    private ApplicationSettings settings;
+    private com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings;
     private long timeAccessed;
     private long timeOpened;
-    private boolean hasRpcConnection = false;
+    @Nullable
+    private String connectedApplication = null;
 
-    public InstanceInfo(@NotNull String id, @NotNull ApplicationSettings settings, @NotNull String distributionCode, @NotNull String distributionVersion, long timeOpened)
+    public InstanceInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings, @NotNull String distributionCode, @NotNull String distributionVersion, long timeOpened)
     {
         this(id, settings, distributionCode, distributionVersion, timeOpened, timeOpened);
     }
 
-    public InstanceInfo(@NotNull String id, @NotNull ApplicationSettings settings, @NotNull String distributionCode, @NotNull String distributionVersion, long timeOpened, long timeAccessed)
+    public InstanceInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings, @NotNull String distributionCode, @NotNull String distributionVersion, long timeOpened, long timeAccessed)
     {
         this(id, settings, new DistributionInfo(distributionCode, distributionVersion), timeOpened, timeAccessed);
     }
 
-    public InstanceInfo(@NotNull String id, @NotNull ApplicationSettings settings, @NotNull DistributionInfo distribution, long timeOpened, long timeAccessed)
+    public InstanceInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings, @NotNull DistributionInfo distribution, long timeOpened, long timeAccessed)
     {
         this(id, settings, distribution, timeOpened, timeAccessed, new HashMap<>());
     }
 
-    public InstanceInfo(@NotNull String id, @NotNull ApplicationSettings settings, @NotNull DistributionInfo distribution, long timeOpened, long timeAccessed, @NotNull Map<String, ProjectInfo> projects)
+    public InstanceInfo(@NotNull String id, @NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings, @NotNull DistributionInfo distribution, long timeOpened, long timeAccessed, @NotNull Map<String, ProjectInfo> projects)
     {
         this.id = id;
         this.settings = settings;
@@ -76,7 +72,9 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
 
     public InstanceInfo(@NotNull String id, @NotNull ApplicationInfo info)
     {
-        this(id, DiscordIntegrationApplicationSettings.getInstance().getSettings(), info.getBuild().getProductCode(), info.getFullVersion(), System.currentTimeMillis());
+        this(id, ApplicationSettings.getInstance().getSettings(), info
+                .getBuild()
+                .getProductCode(), info.getFullVersion(), System.currentTimeMillis());
     }
 
     @NotNull
@@ -111,23 +109,24 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
         this.timeAccessed = timeAccessed;
     }
 
-    public boolean isHasRpcConnection()
+    @Nullable
+    public String getConnectedApplication()
     {
-        return hasRpcConnection;
+        return this.connectedApplication;
     }
 
-    void setHasRpcConnection(boolean hasRpcConnection)
+    void setConnectedApplication(@Nullable String connectedApplication)
     {
-        this.hasRpcConnection = hasRpcConnection;
+        this.connectedApplication = connectedApplication;
     }
 
     @NotNull
-    public ApplicationSettings getSettings()
+    public com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings getSettings()
     {
         return this.settings;
     }
 
-    void setSettings(@NotNull ApplicationSettings settings)
+    void setSettings(@NotNull com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings settings)
     {
         this.settings = settings;
     }
@@ -178,8 +177,6 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
         private final String code;
         @NotNull
         private final String version;
-        @NotNull
-        private transient Type type;
 
         public DistributionInfo(@NotNull ApplicationInfo info)
         {
@@ -189,7 +186,6 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
         public DistributionInfo(@NotNull String code, @NotNull String version)
         {
             this.code = code;
-            this.type = Type.get(code);
             this.version = version;
         }
 
@@ -200,33 +196,17 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
         }
 
         @NotNull
-        public Type getType()
-        {
-            return this.type;
-        }
-
-        @NotNull
         public String getVersion()
         {
             return this.version;
         }
 
-        @NotNull
-        public String getName()
-        {
-            return this.type == Type.UNKNOWN ? Type.UNKNOWN.getName() + " (" + getCode() + ")" : this.type.getName();
-        }
-
-        @NotNull
-        public String getAssetName(boolean showUnknown)
-        {
-            return this.type.getAssetName(showUnknown);
-        }
-
         @Override
         public boolean equals(Object o)
         {
-            return o instanceof DistributionInfo && this.type.equals(((DistributionInfo) o).type) && this.version.equals(((DistributionInfo) o).version);
+            return o instanceof DistributionInfo
+                   && this.code.equals(((DistributionInfo) o).code) &&
+                   this.version.equals(((DistributionInfo) o).version);
         }
 
         @NotNull
@@ -234,92 +214,6 @@ public class InstanceInfo implements Serializable, Comparable<InstanceInfo>
         public String toString()
         {
             return GSON.toJson(this);
-        }
-
-        private void readObject(@NotNull ObjectInputStream in) throws IOException, ClassNotFoundException
-        {
-            in.defaultReadObject();
-
-            this.type = Type.get(code);
-        }
-
-        public enum Type
-        {
-            ANDROID_STUDIO("Android Studio", "android-studio", "AI"),
-            APPCODE("AppCode", "appcode", "OC"),
-            CLION("CLion", "clion", "CL"),
-            DATAGRIP("DataGrip", "datagrip", "DB"),
-            GOLAND("GoLand", "goland", "GO"),
-            INTELLIJ_IDEA_COMMUNITY("IntelliJ IDEA Community", "intellij-idea", "IC"),
-            INTELLIJ_IDEA_ULTIMATE("IntelliJ IDEA Ultimate", "intellij-idea", "IU"),
-            MPS("MPS", "mps", "MPS"),
-            PHPSTORM("PhpStorm", "phpstorm", "PS"),
-            PYCHARM_COMMUNITY("PyCharm Community", "pycharm", "PC"),
-            PYCHARM_EDU("PyCharm Edu", "pycharm-edu", "PE"),
-            PYCHARM_PROFESSIONAL("PyCharm Professional", "pycharm", "PY"),
-            RIDER("Rider", "rider", "RD"),
-            RUBYMINE("RubyMine", "rubymine", "RM"),
-            WEBSTORM("WebStorm", "webstorm", "WS"),
-
-            UNKNOWN("Unknown Distribution", "unknown", "")
-                    {
-                        @NotNull
-                        @Override
-                        public String getAssetName(boolean showUnknown)
-                        {
-                            return showUnknown ? super.getAssetName(true) : "none";
-                        }
-                    };
-
-            @NotNull
-            private static final Map<String, Type> MAP;
-
-            static
-            {
-                MAP = new HashMap<>();
-
-                for (Type distribution : Type.values())
-                    for (String code : distribution.getCodes())
-                        if (MAP.put(code, distribution) != null)
-                            throw new ExceptionInInitializerError("Two distributions cannot have the same code");
-            }
-
-            @NotNull
-            private final String name;
-            @NotNull
-            private final String assetName;
-            @NotNull
-            private final String[] codes;
-
-            Type(@NotNull String name, @NotNull String assetName, @NotNull String... codes)
-            {
-                this.name = name;
-                this.assetName = assetName;
-                this.codes = codes;
-            }
-
-            public static Type get(@NotNull String code)
-            {
-                return MAP.getOrDefault(code, UNKNOWN);
-            }
-
-            @NotNull
-            public String getName()
-            {
-                return this.name;
-            }
-
-            @NotNull
-            public String[] getCodes()
-            {
-                return this.codes;
-            }
-
-            @NotNull
-            public String getAssetName(boolean showUnknown)
-            {
-                return this.assetName;
-            }
         }
     }
 }

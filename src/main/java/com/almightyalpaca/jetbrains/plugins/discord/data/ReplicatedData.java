@@ -19,8 +19,9 @@ import com.almightyalpaca.jetbrains.plugins.discord.debug.Logger;
 import com.almightyalpaca.jetbrains.plugins.discord.debug.LoggerFactory;
 import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ApplicationSettings;
 import com.almightyalpaca.jetbrains.plugins.discord.settings.data.ProjectSettings;
+import com.almightyalpaca.jetbrains.plugins.discord.utils.FileType;
+import com.almightyalpaca.jetbrains.plugins.discord.utils.SerializablePair;
 import com.google.gson.Gson;
-import com.intellij.openapi.util.Pair;
 import gnu.trove.TIntObjectHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -58,13 +59,14 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
      * xx4 -> set settings
      *
      * x50 -> file - set read-only
-     * x51 -> instance - set has rpc connection
+     * x51 -> instance - set connected application
+     * x52 -> file - set first line
      */
     private static final short INSTANCE_ADD = 1;
     private static final short INSTANCE_REMOVE = 2;
     private static final short INSTANCE_UPDATE = 3;
     private static final short INSTANCE_SET_SETTINGS = 4;
-    private static final short INSTANCE_SET_HAS_RPC_CONNECTION = 51;
+    private static final short INSTANCE_SET_CONNECTED_APPLICATION = 51;
     private static final short PROJECT_ADD = 101;
     private static final short PROJECT_REMOVE = 102;
     private static final short PROJECT_UPDATE = 103;
@@ -73,6 +75,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
     private static final short FILE_REMOVE = 202;
     private static final short FILE_UPDATE = 203;
     private static final short FILE_SET_READ_ONLY = 250;
+    private static final short FILE_SET_FIRST_LINE = 252;
 
     static
     {
@@ -84,7 +87,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
             METHODS.put(INSTANCE_REMOVE, ReplicatedData.class.getDeclaredMethod("_instanceRemove", long.class, String.class));
             METHODS.put(INSTANCE_UPDATE, ReplicatedData.class.getDeclaredMethod("_instanceUpdate", long.class, String.class));
             METHODS.put(INSTANCE_SET_SETTINGS, ReplicatedData.class.getDeclaredMethod("_instanceSetSettings", long.class, String.class, ApplicationSettings.class));
-            METHODS.put(INSTANCE_SET_HAS_RPC_CONNECTION, ReplicatedData.class.getDeclaredMethod("_instanceSetHasRpcConnection", long.class, String.class, boolean.class));
+            METHODS.put(INSTANCE_SET_CONNECTED_APPLICATION, ReplicatedData.class.getDeclaredMethod("_instanceSetConnectedApplication", long.class, String.class, String.class));
 
             METHODS.put(PROJECT_ADD, ReplicatedData.class.getDeclaredMethod("_projectAdd", long.class, String.class, ProjectInfo.class));
             METHODS.put(PROJECT_REMOVE, ReplicatedData.class.getDeclaredMethod("_projectRemove", long.class, String.class, String.class));
@@ -269,23 +272,23 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         }
     }
 
-    public void instanceSetHasRpcConnection(long timestamp, @Nullable InstanceInfo instance, boolean hasRpcConnection)
+    public void instanceSetConnectedApplication(long timestamp, @Nullable InstanceInfo instance, @Nullable String connectedApplication)
     {
-        LOG.trace("ReplicatedData#instanceSetHasRpcConnection({}, {})", instance, hasRpcConnection);
+        LOG.trace("ReplicatedData#instanceSetConnectedApplication({}, {})", instance, connectedApplication);
 
         if (instance == null)
             return;
 
-        this._instanceSetHasRpcConnection(timestamp, instance.getId(), hasRpcConnection);
+        this._instanceSetConnectedApplication(timestamp, instance.getId(), connectedApplication);
 
         try
         {
-            MethodCall call = new MethodCall(INSTANCE_SET_HAS_RPC_CONNECTION, timestamp, instance.getId(), hasRpcConnection);
+            MethodCall call = new MethodCall(INSTANCE_SET_CONNECTED_APPLICATION, timestamp, instance.getId(), connectedApplication);
             this.dispatcher.callRemoteMethods(getTargets(), call, this.call_options);
         }
         catch (Exception e)
         {
-            throw new RuntimeException("instanceSetHasRpcConnection(" + instance + ", " + hasRpcConnection + ") failed", e);
+            throw new RuntimeException("instanceSetConnectedApplication(" + instance + ", " + connectedApplication + ") failed", e);
         }
     }
 
@@ -449,6 +452,26 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         }
     }
 
+    public void fileSetFirstLine(long timestamp, @Nullable InstanceInfo instance, @Nullable ProjectInfo project, @Nullable FileInfo file, @Nullable SerializablePair<FileType, String> content)
+    {
+        LOG.trace("ReplicatedData#fileSetFirstLine({}, {}, {}, {}, {})", timestamp, instance, project, file, content);
+
+        if (timestamp < 0 || instance == null || project == null || file == null || content == null)
+            return;
+
+        this._fileSetContent(timestamp, instance.getId(), project.getId(), file.getId(), content);
+
+        try
+        {
+            MethodCall call = new MethodCall(FILE_SET_FIRST_LINE, timestamp, instance.getId(), project.getId(), file.getId(), content);
+            this.dispatcher.callRemoteMethods(getTargets(), call, this.call_options);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("fileSetContent(" + timestamp + ", " + instance + ", " + project + ", " + file + ", " + content + ") failed", e);
+        }
+    }
+
     public void fileSetReadOnly(long timestamp, @Nullable InstanceInfo instance, @Nullable ProjectInfo project, @Nullable FileInfo file, boolean readOnly)
     {
         LOG.trace("ReplicatedData#fileSetReadOnly({}, {}, {}, {}, {})", timestamp, instance, project, file, readOnly);
@@ -480,8 +503,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
             // @formatter:off
             if (instance.getSettings().isHideAfterPeriodOfInactivity()
                     && instance.getSettings().isResetOpenTimeAfterInactivity()
-                    && instance.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS)
-                        < System.currentTimeMillis())
+                    && instance.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) < System.currentTimeMillis())
                 // @formatter:on
                 instance.setTimeOpened(timeAccessed);
 
@@ -493,7 +515,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         return null;
     }
 
-    private Pair<InstanceInfo, ProjectInfo> updateProject(@NotNull String instanceId, @NotNull String projectId, long timeAccessed)
+    private SerializablePair<InstanceInfo, ProjectInfo> updateProject(@NotNull String instanceId, @NotNull String projectId, long timeAccessed)
     {
         InstanceInfo instance = updateInstance(instanceId, timeAccessed);
 
@@ -506,14 +528,13 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
                 // @formatter:off
                 if (instance.getSettings().isHideAfterPeriodOfInactivity()
                         && instance.getSettings().isResetOpenTimeAfterInactivity()
-                        && project.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS)
-                            < System.currentTimeMillis())
+                        && project.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) < System.currentTimeMillis())
                     // @formatter:on
                     project.setTimeOpened(timeAccessed);
 
                 project.setTimeAccessed(timeAccessed);
 
-                return Pair.create(instance, project);
+                return new SerializablePair<>(instance, project);
             }
         }
 
@@ -522,7 +543,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
 
     private void updateFile(@NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, long timeAccessed)
     {
-        Pair<InstanceInfo, ProjectInfo> pair = updateProject(instanceId, projectId, timeAccessed);
+        SerializablePair<InstanceInfo, ProjectInfo> pair = updateProject(instanceId, projectId, timeAccessed);
 
         if (pair != null)
         {
@@ -536,8 +557,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
                 // @formatter:off
                 if (instance.getSettings().isHideAfterPeriodOfInactivity()
                         && instance.getSettings().isResetOpenTimeAfterInactivity()
-                        && file.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS)
-                            < System.currentTimeMillis())
+                        && file.getTimeAccessed() + instance.getSettings().getInactivityTimeout(TimeUnit.MILLISECONDS) < System.currentTimeMillis())
                     // @formatter:on
                     file.setTimeOpened(timeAccessed);
 
@@ -580,16 +600,16 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         notifyListeners(Notifier.Type.INSTANCE_SET_SETTINGS);
     }
 
-    protected void _instanceSetHasRpcConnection(long timestamp, @NotNull String instanceId, boolean hasRpcConnection)
+    protected void _instanceSetConnectedApplication(long timestamp, @NotNull String instanceId, String connectedApplication)
     {
-        LOG.trace("ReplicatedData#_instanceSetHasRpcConnection({}, {})", instanceId, hasRpcConnection);
+        LOG.trace("ReplicatedData#_instanceSetConnectedApplication({}, {})", instanceId, connectedApplication);
 
         InstanceInfo instance = this.instances.get(instanceId);
 
         if (instance != null)
-            instance.setHasRpcConnection(hasRpcConnection);
+            instance.setConnectedApplication(connectedApplication);
 
-        notifyListeners(Notifier.Type.INSTANCE_SET_HAS_RPC_CONNECTION);
+        notifyListeners(Notifier.Type.INSTANCE_SET_CONNECTED_APPLICATION);
     }
 
     protected void _instanceUpdate(long timestamp, @NotNull String instanceId)
@@ -704,6 +724,30 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
         notifyListeners(Notifier.Type.FILE_UPDATE);
     }
 
+    protected void _fileSetContent(long timestamp, @NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, @NotNull SerializablePair<FileType, String> content)
+    {
+        LOG.trace("ReplicatedData#_fileSetContent({}, {}, {}, {}, {})", timestamp, instanceId, projectId, fileId, content);
+
+        InstanceInfo instance = this.instances.get(instanceId);
+
+        if (instance != null)
+        {
+            ProjectInfo project = instance.getProjects().get(projectId);
+
+            if (project != null)
+            {
+                FileInfo file = project.getFiles().get(fileId);
+
+                if (file != null)
+                    file.setContent(content);
+            }
+        }
+
+        updateFile(instanceId, projectId, fileId, timestamp);
+
+        notifyListeners(Notifier.Type.FILE_SET_FIRST_LINE);
+    }
+
     protected void _fileSetReadOnly(long timestamp, @NotNull String instanceId, @NotNull String projectId, @NotNull String fileId, boolean readOnly)
     {
         LOG.trace("ReplicatedData#_fileSetReadOnly({}, {}, {}, {}, {})", timestamp, instanceId, projectId, fileId, readOnly);
@@ -809,7 +853,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
             INSTANCE_REMOVE(1),
             INSTANCE_UPDATE(2),
             INSTANCE_SET_SETTINGS(1),
-            INSTANCE_SET_HAS_RPC_CONNECTION(2),
+            INSTANCE_SET_CONNECTED_APPLICATION(2),
             PROJECT_ADD(5),
             PROJECT_REMOVE(1),
             PROJECT_UPDATE(2),
@@ -817,6 +861,7 @@ public class ReplicatedData implements MembershipListener, StateListener, Closea
             FILE_ADD(2),
             FILE_REMOVE(1),
             FILE_UPDATE(2),
+            FILE_SET_FIRST_LINE(2),
             FILE_SET_READ_ONLY(2);
 
             private final int delay;
